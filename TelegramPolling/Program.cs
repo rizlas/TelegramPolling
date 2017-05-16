@@ -14,7 +14,7 @@ namespace TelegramPolling
         /// </summary>
         static void Main()
         {
-            if (Environment.UserInteractive && System.Diagnostics.Debugger.IsAttached)
+            if (Environment.UserInteractive)//&& System.Diagnostics.Debugger.IsAttached)
             {
                 Scheduler telegramPolling = new Scheduler();
                 telegramPolling.Start();

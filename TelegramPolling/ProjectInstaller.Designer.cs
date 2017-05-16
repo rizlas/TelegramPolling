@@ -42,7 +42,7 @@
             // TelegramPollingInstaller
             // 
             this.TelegramPollingInstaller.Description = "Polling aggiornamenti bot telegram avvisi";
-            this.TelegramPollingInstaller.ServiceName = "Telegram polling";
+            this.TelegramPollingInstaller.ServiceName = "Telegram Polling";
             this.TelegramPollingInstaller.StartType = System.ServiceProcess.ServiceStartMode.Automatic;
             // 
             // ProjectInstaller
