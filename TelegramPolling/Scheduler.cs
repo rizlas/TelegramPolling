@@ -6,13 +6,17 @@ using RestSharp;
 using System.Configuration;
 using System.Net;
 using Newtonsoft.Json;
+using log4net;
 
 namespace TelegramPolling
 {
     public partial class Scheduler : ServiceBase
     {
         Thread _threadOnStart;
-        int lastUpdateId = 0;
+        int _lastUpdateId = 0;
+        const string _emojiSad = "\U0001F614";
+        const string _emojiHappy = "\U0001F60A";
+        private static readonly ILog log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
 
         public Scheduler()
         {
@@ -40,6 +44,8 @@ namespace TelegramPolling
             _threadOnStart.Name = "StartThread";
             _threadOnStart.IsBackground = false;
             _threadOnStart.Start();
+
+            log.Info("Servizio partito....");
         }
 
         private async void StartThread()
@@ -50,11 +56,20 @@ namespace TelegramPolling
 
             while (true)
             {
-                Update[] updates = await tg.GetUpdates(lastUpdateId);
+                Update[] updates = null;
+
+                try
+                {
+                    updates = await tg.GetUpdates(_lastUpdateId);
+                }
+                catch (Exception ex)
+                {
+                    log.Error($"{ex.Message}{Environment.NewLine}{ex.StackTrace}");
+                }
 
                 if(updates.Length > 0)
                 {
-                    lastUpdateId = updates[updates.Length - 1].Id + 1;
+                    _lastUpdateId = updates[updates.Length - 1].Id + 1;
 
                     for (int i = 0; i < updates.Length; i++)
                     {
@@ -74,20 +89,25 @@ namespace TelegramPolling
                                     if (response.StatusCode == HttpStatusCode.Created)
                                     {
                                         Console.WriteLine("Aggiunto");
-                                        SendMessage(user, $"Benvenuto {user.Username}, per la lista comandi digita /help.");
+                                        SendMessage(user, $"Benvenuto {user.FirstName}, per la lista comandi digita /help. {_emojiHappy}");
                                     }
                                     else if (response.StatusCode == HttpStatusCode.NotModified)
                                     {
                                         Console.WriteLine("Esiste");
-                                        SendMessage(user, $"{user.Username}, risulti già iscritto.");
+                                        SendMessage(user, $"{user.FirstName}, risulti già iscritto.");
                                     }
                                     else if (response.StatusCode == HttpStatusCode.InternalServerError)
                                     {
                                         ExceptionModel ex = JsonConvert.DeserializeObject<ExceptionModel>(response.Content);
-                                        Console.WriteLine($"{ex.Message}{Environment.NewLine}{ex.ExceptionMessage}{Environment.NewLine}{ex.ExceptionType}{Environment.NewLine}{ex.StackTrace}{Environment.NewLine}");
+                                        string toLog = $"{ex.Message}{Environment.NewLine}{ex.ExceptionMessage}{Environment.NewLine}{ex.ExceptionType}{Environment.NewLine}{ex.StackTrace}{Environment.NewLine}";
+                                        Console.WriteLine(toLog);
+                                        log.Error(toLog);
                                     }
                                     else
+                                    {
                                         Console.WriteLine(response.Content);
+                                        log.Warn(response.Content);
+                                    }
                                 });
                                 break;
                             case "/stop":
@@ -100,32 +120,37 @@ namespace TelegramPolling
                                     if (response.StatusCode == HttpStatusCode.OK)
                                     {
                                         Console.WriteLine("Rimosso");
-                                        SendMessage(user, $"Ciao {user.Username}, ci dispiace vederti andar via. :(");
+                                        SendMessage(user, $"Ciao {user.FirstName}, ci dispiace vederti andar via. {_emojiSad}");
                                     }
                                     else if (response.StatusCode == HttpStatusCode.NotFound)
                                     {
                                         Console.WriteLine("Non esiste, impossibile eliminare");
-                                        SendMessage(user, $"{user.Username}, non risulti iscritto alla ricezione notifiche comincia ora inviando il comando /start");
+                                        SendMessage(user, $"{user.FirstName}, non risulti iscritto alla ricezione notifiche comincia ora inviando il comando /start");
                                     }
                                     else if (response.StatusCode == HttpStatusCode.InternalServerError)
                                     {
                                         ExceptionModel ex = JsonConvert.DeserializeObject<ExceptionModel>(response.Content);
-                                        Console.WriteLine($"{ex.Message}{Environment.NewLine}{ex.ExceptionMessage}{Environment.NewLine}{ex.ExceptionType}{Environment.NewLine}{ex.StackTrace}{Environment.NewLine}");
+                                        string toLog = $"{ex.Message}{Environment.NewLine}{ex.ExceptionMessage}{Environment.NewLine}{ex.ExceptionType}{Environment.NewLine}{ex.StackTrace}{Environment.NewLine}";
+                                        Console.WriteLine(toLog);
+                                        log.Error(toLog);
                                     }
                                     else
+                                    {
                                         Console.WriteLine(response.Content);
+                                        log.Warn(response.Content);
+                                    }
                                 });
                                 break;
                             case "/help":
                                 Console.WriteLine($"/start - Abilita ricezione notifiche{Environment.NewLine}/stop - Disabilita ricezione notifche{Environment.NewLine}/help - Fa vedere questa lista");
-                                SendMessage(user, $"Lista comandi per il bot IGF Avvisi{Environment.NewLine}{Environment.NewLine}/start - Abilita la ricezione delle notifiche{Environment.NewLine}/stop - Disabilita la ricezione delle notifiche{Environment.NewLine}/help - Visualizza questa lista", true);
+                                SendMessage(user, $"<b>Lista comandi per il bot IGF Avvisi</b>{Environment.NewLine}{Environment.NewLine}<b>/start</b> - Abilita la ricezione delle notifiche{Environment.NewLine}<b>/stop</b> - Disabilita la ricezione delle notifiche{Environment.NewLine}<b>/help</b> - Visualizza questa lista", true);
                                 break;
                             default:
                                 Console.WriteLine($"Messaggio: {messaggio}");
                                 break;
                         }
 
-                        Console.WriteLine($"Last Id: {lastUpdateId}");
+                        Console.WriteLine($"Last Id: {_lastUpdateId}");
                     }
                 }
             }
@@ -133,13 +158,27 @@ namespace TelegramPolling
 
         private static void SendMessage(User user, string message, bool Html = false)
         {
-            RestClient rc = new RestClient(ConfigurationManager.AppSettings["ApiTelegram"]);
-            RestRequest rr = new RestRequest();
-            rr.Resource = $"api/Telegram/SendMessage/{user.Id}/{Html}";
-            rr.Method = Method.POST;
-            rr.AddJsonBody(message);
+            try
+            {
+                RestClient rc = new RestClient(ConfigurationManager.AppSettings["ApiTelegram"]);
+                RestRequest rr = new RestRequest();
+                rr.Resource = $"api/Telegram/SendMessage/{user.Id}/{Html}";
+                rr.Method = Method.POST;
+                rr.AddJsonBody(message);
 
-            rc.Execute(rr);
+                var resp = rc.Execute(rr);
+
+                if(resp.ErrorException != null)
+                { 
+                    Console.WriteLine($"{resp.ErrorMessage}{Environment.NewLine}{resp.ErrorException.StackTrace}");
+                    log.Error($"{resp.ErrorMessage}{Environment.NewLine}{resp.ErrorException.StackTrace}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"{ex.Message}{Environment.NewLine}{ex.StackTrace}");
+                log.Error($"{ex.Message}{Environment.NewLine}{ex.StackTrace}");
+            }
         }
     }
 }
