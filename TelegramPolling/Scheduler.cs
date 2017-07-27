@@ -7,6 +7,7 @@ using System.Configuration;
 using System.Net;
 using Newtonsoft.Json;
 using log4net;
+using System.Text.RegularExpressions;
 
 namespace TelegramPolling
 {
@@ -52,79 +53,104 @@ namespace TelegramPolling
         private async void StartThread()
         {
             Telegram tg = new Telegram();
-            RestClient rc = new RestClient(ConfigurationManager.AppSettings["ApiTelegram"]);
-            RestRequest rr = new RestRequest();
+            bool ret = tg.FillUsers();
 
-            while (true)
+            if (ret)
             {
-                try
+                RestClient rc = new RestClient(ConfigurationManager.AppSettings["ApiTelegram"]);
+                RestRequest rr = new RestRequest();
+
+                while (true)
                 {
-                    Update[] updates = await tg.GetUpdates(_lastUpdateId);
-                    
-                    if (updates.Length > 0)
+                    try
                     {
-                        _lastUpdateId = updates[updates.Length - 1].Id + 1;
+                        Update[] updates = await tg.GetUpdates(_lastUpdateId);
 
-                        for (int i = 0; i < updates.Length; i++)
+                        if (updates.Length > 0)
                         {
-                            string messaggio = updates[i].Message.Text;
-                            User user = updates[i].Message.From;
-                            string[] parametri = null;
+                            _lastUpdateId = updates[updates.Length - 1].Id + 1;
 
-                            // Check se utente è registrato
-
-                            if (!messaggio.Trim().Equals("/stato"))
+                            for (int i = 0; i < updates.Length; i++)
                             {
-                                if (messaggio.Contains("/stato"))
-                                {
-                                    parametri = messaggio.Split(' ');
-                                    messaggio = "/stato";
-                                }
+                                string messaggio = updates[i].Message.Text;
+                                User user = updates[i].Message.From;
+                                string[] parametri = messaggio.Split(' ');
 
-                                switch (messaggio)
+                                switch (parametri[0])
                                 {
                                     case "/start":
-                                        Console.WriteLine($"Utente: {updates[i].Message.From.FirstName} registrato");
-                                        rr.Resource = "api/Telegram/Subscribe";
-                                        rr.Method = Method.POST;
-                                        rr.AddJsonBody(new { id = -1, FirstName = user.FirstName, ChatId = user.Id, LastName = user.LastName, Username = user.Username });
+                                        //if(IsPhoneNumber(parametri[1]))
+                                        //{
+                                        //    // Authentication with swyx server
+                                        //}
+                                        //else
+                                        //{
 
-                                        rc.ExecuteAsync(rr, response =>
+                                        //}
+
+                                        if (parametri.Length >= 2)
                                         {
-                                            if (response.StatusCode == HttpStatusCode.Created)
+                                            if (parametri[1].CompareTo(ConfigurationManager.AppSettings["BotPassword"].ToString()) == 0)
                                             {
-                                                Console.WriteLine("Aggiunto");
-                                                SendMessage(user, $"Benvenuto {user.FirstName}, per la lista comandi digita /help. {_emojiHappy}");
+                                                Console.WriteLine($"Utente: {updates[i].Message.From.FirstName} registrato");
+                                                rr.Resource = "api/Telegram/Subscribe";
+                                                rr.Method = Method.POST;
+                                                rr.AddJsonBody(new { id = -1, FirstName = user.FirstName, ChatId = user.Id, LastName = user.LastName, Username = user.Username });
+
+                                                #region Start Execution
+
+                                                rc.ExecuteAsync(rr, response =>
+                                                {
+                                                    if (response.StatusCode == HttpStatusCode.Created)
+                                                    {
+                                                        Console.WriteLine("Aggiunto");
+                                                        tg.Registered.Add(new TelegramUser() { id = -1, FirstName = user.FirstName, ChatId = user.Id, LastName = user.LastName, Username = user.Username });
+                                                        SendMessage(user, $"Benvenuto {user.FirstName}, per la lista comandi digita /help. {_emojiHappy}");
+                                                    }
+                                                    else if (response.StatusCode == HttpStatusCode.NotModified)
+                                                    {
+                                                        Console.WriteLine("Esiste");
+                                                        SendMessage(user, $"{user.FirstName}, risulti già iscritto.");
+                                                    }
+                                                    else if (response.StatusCode == HttpStatusCode.InternalServerError)
+                                                    {
+                                                        ExceptionModel ex = JsonConvert.DeserializeObject<ExceptionModel>(response.Content);
+                                                        string toLog = $"{ex.Message}{Environment.NewLine}{ex.ExceptionMessage}{Environment.NewLine}{ex.ExceptionType}{Environment.NewLine}{ex.StackTrace}{Environment.NewLine}";
+                                                        Console.WriteLine(toLog);
+                                                        log.Error(toLog);
+                                                    }
+                                                    else if (response.StatusCode != HttpStatusCode.OK)
+                                                    {
+                                                        Console.WriteLine(response.Content);
+                                                        log.Warn($"Code: {response.StatusCode} Content: {response.Content}");
+                                                    }
+                                                });
                                             }
-                                            else if (response.StatusCode == HttpStatusCode.NotModified)
+                                            else
                                             {
-                                                Console.WriteLine("Esiste");
-                                                SendMessage(user, $"{user.FirstName}, risulti già iscritto.");
+                                                SendMessage(user, $"{user.FirstName}, non sei il benvenuto!!");
                                             }
-                                            else if (response.StatusCode == HttpStatusCode.InternalServerError)
-                                            {
-                                                ExceptionModel ex = JsonConvert.DeserializeObject<ExceptionModel>(response.Content);
-                                                string toLog = $"{ex.Message}{Environment.NewLine}{ex.ExceptionMessage}{Environment.NewLine}{ex.ExceptionType}{Environment.NewLine}{ex.StackTrace}{Environment.NewLine}";
-                                                Console.WriteLine(toLog);
-                                                log.Error(toLog);
-                                            }
-                                            else if (response.StatusCode != HttpStatusCode.OK)
-                                            {
-                                                Console.WriteLine(response.Content);
-                                                log.Warn($"Code: {response.StatusCode} Content: {response.Content}");
-                                            }
-                                        });
+                                        }
+                                        else
+                                        {
+                                            SendMessage(user, $"{user.FirstName}, non sei il benvenuto!!");
+                                        }
+                                        #endregion
+
                                         break;
                                     case "/stop":
                                         Console.WriteLine($"Utente: {updates[i].Message.From.FirstName} rimosso");
                                         rr.Resource = $"api/Telegram/Unsubscribe/{user.Id}";
                                         rr.Method = Method.DELETE;
 
+                                        #region Stop Execution
+
                                         rc.ExecuteAsync(rr, response =>
                                         {
                                             if (response.StatusCode == HttpStatusCode.OK)
                                             {
                                                 Console.WriteLine("Rimosso");
+                                                tg.Registered.RemoveAll(u => u.ChatId == user.Id);
                                                 SendMessage(user, $"Ciao {user.FirstName}, ci dispiace vederti andar via. {_emojiSad}");
                                             }
                                             else if (response.StatusCode == HttpStatusCode.NotFound)
@@ -139,78 +165,91 @@ namespace TelegramPolling
                                                 Console.WriteLine(toLog);
                                                 log.Error(toLog);
                                             }
-                                            else if(response.StatusCode != HttpStatusCode.OK)
+                                            else if (response.StatusCode != HttpStatusCode.OK)
                                             {
                                                 Console.WriteLine(response.Content);
                                                 log.Warn($"Code: {response.StatusCode} Content: {response.Content}");
                                             }
                                         });
+
+                                        #endregion
+
                                         break;
                                     case "/help":
                                         Console.WriteLine($"/start - Abilita ricezione notifiche{Environment.NewLine}/stop - Disabilita ricezione notifche{Environment.NewLine}/help - Fa vedere questa lista");
                                         SendMessage(user, $"<b>Lista comandi per il bot IGF Avvisi</b>{Environment.NewLine}{Environment.NewLine}<b>/start</b> - Abilita la ricezione delle notifiche{Environment.NewLine}<b>/stop</b> - Disabilita la ricezione delle notifiche{Environment.NewLine}<b>/help</b> - Visualizza questa lista{Environment.NewLine}<b>/stato</b> - aggiungi come parametro il nome macchina e avrai lo stato di quella macchina (esempio: /stato mBR01)", true);
                                         break;
                                     case "/stato":
-                                        if (parametri.Length > 1)
+                                        if (tg.Registered.Find(u => u.ChatId == user.Id) != null)
                                         {
-                                            if (parametri[1].Length == 5)
+                                            if (parametri.Length > 1)
                                             {
-                                                rr.Resource = $"api/Telegram/Statuses/{user.Id}/{parametri[1]}";
-                                                rr.Method = Method.GET;
-
-                                                rc.ExecuteAsync(rr, response =>
+                                                if (parametri[1].Length == 5)
                                                 {
-                                                    if (response.StatusCode == HttpStatusCode.InternalServerError)
-                                                    {
-                                                        ExceptionModel ex = JsonConvert.DeserializeObject<ExceptionModel>(response.Content);
-                                                        string toLog = $"{ex.Message}{Environment.NewLine}{ex.ExceptionMessage}{Environment.NewLine}{ex.ExceptionType}{Environment.NewLine}{ex.StackTrace}{Environment.NewLine}";
-                                                        Console.WriteLine(toLog);
-                                                        log.Error(toLog);
-                                                    }
-                                                    else if (response.StatusCode == HttpStatusCode.NotFound)
-                                                    {
-                                                        SendMessage(user, $"Non conosco questa macchina {parametri[1]}");
-                                                        log.Error($"Non conosco questa macchina {parametri[1]}, {user.FirstName}");
-                                                    }
-                                                    else if(response.StatusCode != HttpStatusCode.OK)
-                                                    {
-                                                        if(response.ErrorException != null)
-                                                            log.Error(response.ErrorException.Message);
+                                                    rr.Resource = $"api/Telegram/Statuses/{user.Id}/{parametri[1]}";
+                                                    rr.Method = Method.GET;
 
-                                                        Console.WriteLine(response.Content);
-                                                        log.Warn($"Code: {response.StatusCode} Content: {response.Content}");
-                                                    }
-                                                });
+                                                    #region Stato Execution
+
+                                                    rc.ExecuteAsync(rr, response =>
+                                                    {
+                                                        if (response.StatusCode == HttpStatusCode.InternalServerError)
+                                                        {
+                                                            ExceptionModel ex = JsonConvert.DeserializeObject<ExceptionModel>(response.Content);
+                                                            string toLog = $"{ex.Message}{Environment.NewLine}{ex.ExceptionMessage}{Environment.NewLine}{ex.ExceptionType}{Environment.NewLine}{ex.StackTrace}{Environment.NewLine}";
+                                                            Console.WriteLine(toLog);
+                                                            log.Error(toLog);
+                                                        }
+                                                        else if (response.StatusCode == HttpStatusCode.NotFound)
+                                                        {
+                                                            SendMessage(user, $"Non conosco questa macchina {parametri[1]}");
+                                                            log.Error($"Non conosco questa macchina {parametri[1]}, {user.FirstName}");
+                                                        }
+                                                        else if (response.StatusCode != HttpStatusCode.OK)
+                                                        {
+                                                            if (response.ErrorException != null)
+                                                                log.Error(response.ErrorException.Message);
+
+                                                            Console.WriteLine(response.Content);
+                                                            log.Warn($"Code: {response.StatusCode} Content: {response.Content}");
+                                                        }
+                                                    });
+
+                                                    #endregion
+                                                }
+                                                else
+                                                {
+                                                    SendMessage(user, $"Non conosco questa macchina {parametri[1]}");
+                                                }
                                             }
                                             else
                                             {
-                                                SendMessage(user, $"Non conosco questa macchina {parametri[1]}");
+                                                SendMessage(user, "Comando errato, riprova...");
                                             }
                                         }
                                         else
                                         {
-                                            SendMessage(user, "Comando errato, riprova...");
+                                            SendMessage(user, "Non sei autorizzato ad usare questo comando o non sei registrato!");
                                         }
                                         break;
                                     default:
                                         Console.WriteLine($"Messaggio: {messaggio}");
                                         break;
                                 }
-                            }
-                            else
-                            {
-                                SendMessage(user, "Comando errato, riprova...");
-                            }
 
-                            Console.WriteLine($"Last Id: {_lastUpdateId}");
+                                Console.WriteLine($"Last Id: {_lastUpdateId}");
+                            }
                         }
                     }
+                    catch (Exception ex)
+                    {
+                        log.Error($"{ex.Message}{Environment.NewLine}{ex.StackTrace}");
+                    }
                 }
-                catch (Exception ex)
-                {
-                    log.Error($"{ex.Message}{Environment.NewLine}{ex.StackTrace}");
-                }
-
+            }
+            else
+            {
+                log.Error("Non sono riuscito a determinare gli utenti!");
             }
         }
 
@@ -237,6 +276,11 @@ namespace TelegramPolling
                 Console.WriteLine($"{ex.Message}{Environment.NewLine}{ex.StackTrace}");
                 log.Error($"{ex.Message}{Environment.NewLine}{ex.StackTrace}");
             }
+        }
+
+        public static bool IsPhoneNumber(string number)
+        {
+            return Regex.Match(number, @"^(\+[0-9]{9})$").Success;
         }
     }
 }
