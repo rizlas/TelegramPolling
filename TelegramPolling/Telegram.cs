@@ -1,5 +1,7 @@
-﻿using Newtonsoft.Json;
+﻿using log4net;
+using Newtonsoft.Json;
 using RestSharp;
+using System;
 using System.Collections.Generic;
 using System.Configuration;
 using System.Net;
@@ -12,6 +14,7 @@ namespace TelegramPolling
     class Telegram
     {
         List<TelegramUser> registered;
+        private static readonly ILog log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
 
         public List<TelegramUser> Registered
         {
@@ -54,6 +57,31 @@ namespace TelegramPolling
             else
             {
                 return false;
+            }
+        }
+
+        public void SendMessage(User user, string message, bool Html = false)
+        {
+            try
+            {
+                RestClient rc = new RestClient(ConfigurationManager.AppSettings["ApiTelegram"]);
+                RestRequest rr = new RestRequest();
+                rr.Resource = $"api/Telegram/SendMessage/{user.Id}/{Html}";
+                rr.Method = Method.POST;
+                rr.AddJsonBody(message);
+
+                var resp = rc.Execute(rr);
+
+                if (resp.ErrorException != null)
+                {
+                    Console.WriteLine($"{resp.ErrorMessage}{Environment.NewLine}{resp.ErrorException.StackTrace}");
+                    log.Error($"{resp.ErrorMessage}{Environment.NewLine}{resp.ErrorException.StackTrace}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"{ex.Message}{Environment.NewLine}{ex.StackTrace}");
+                log.Error($"{ex.Message}{Environment.NewLine}{ex.StackTrace}");
             }
         }
     }

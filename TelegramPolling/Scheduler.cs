@@ -52,6 +52,7 @@ namespace TelegramPolling
 
         private async void StartThread()
         {
+            SignalRTerminalsClient sc = new SignalRTerminalsClient();
             Telegram tg = new Telegram();
             bool ret = tg.FillUsers();
 
@@ -76,7 +77,7 @@ namespace TelegramPolling
                                 User user = updates[i].Message.From;
                                 string[] parametri = messaggio.Split(' ');
 
-                                switch (parametri[0])
+                                switch (parametri[0].ToLower())
                                 {
                                     case "/start":
                                         //if(IsPhoneNumber(parametri[1]))
@@ -105,16 +106,16 @@ namespace TelegramPolling
                                                     {
                                                         Console.WriteLine("Aggiunto");
                                                         tg.Registered.Add(new TelegramUser() { id = -1, FirstName = user.FirstName, ChatId = user.Id, LastName = user.LastName, Username = user.Username });
-                                                        SendMessage(user, $"Benvenuto {user.FirstName}, per la lista comandi digita /help. {_emojiHappy}");
+                                                        tg.SendMessage(user, $"Benvenuto {user.FirstName}, per la lista comandi digita /help. {_emojiHappy}");
                                                     }
                                                     else if (response.StatusCode == HttpStatusCode.NotModified)
                                                     {
                                                         Console.WriteLine("Esiste");
-                                                        SendMessage(user, $"{user.FirstName}, risulti già iscritto.");
+                                                        tg.SendMessage(user, $"{user.FirstName}, risulti già iscritto.");
                                                     }
                                                     else if (response.StatusCode == HttpStatusCode.InternalServerError)
                                                     {
-                                                        InternalServerError(response, user);
+                                                        InternalServerError(response, user, tg);
                                                     }
                                                     else if (response.StatusCode != HttpStatusCode.OK)
                                                     {
@@ -125,12 +126,12 @@ namespace TelegramPolling
                                             }
                                             else
                                             {
-                                                SendMessage(user, $"{user.FirstName}, non sei il benvenuto!!");
+                                                tg.SendMessage(user, $"{user.FirstName}, non sei il benvenuto!!");
                                             }
                                         }
                                         else
                                         {
-                                            SendMessage(user, $"{user.FirstName}, non sei il benvenuto!!");
+                                            tg.SendMessage(user, $"{user.FirstName}, non sei il benvenuto!!");
                                         }
                                         #endregion
 
@@ -148,16 +149,16 @@ namespace TelegramPolling
                                             {
                                                 Console.WriteLine("Rimosso");
                                                 tg.Registered.RemoveAll(u => u.ChatId == user.Id);
-                                                SendMessage(user, $"Ciao {user.FirstName}, ci dispiace vederti andar via. {_emojiSad}");
+                                                tg.SendMessage(user, $"Ciao {user.FirstName}, ci dispiace vederti andar via. {_emojiSad}");
                                             }
                                             else if (response.StatusCode == HttpStatusCode.NotFound)
                                             {
                                                 Console.WriteLine("Non esiste, impossibile eliminare");
-                                                SendMessage(user, $"{user.FirstName}, non risulti iscritto alla ricezione notifiche comincia ora inviando il comando /start");
+                                                tg.SendMessage(user, $"{user.FirstName}, non risulti iscritto alla ricezione notifiche comincia ora inviando il comando /start");
                                             }
                                             else if (response.StatusCode == HttpStatusCode.InternalServerError)
                                             {
-                                                InternalServerError(response, user);
+                                                InternalServerError(response, user, tg);
                                             }
                                             else if (response.StatusCode != HttpStatusCode.OK)
                                             {
@@ -170,7 +171,7 @@ namespace TelegramPolling
 
                                         break;
                                     case "/help":
-                                        SendMessage(user, $@"<b>Lista comandi per il bot IGF Avvisi</b>{Environment.NewLine}{Environment.NewLine}
+                                        tg.SendMessage(user, $@"<b>Lista comandi per il bot IGF Avvisi</b>{Environment.NewLine}{Environment.NewLine}
                                                              <b>/start</b> - Abilita la ricezione delle notifiche{Environment.NewLine}
                                                              <b>/stop</b> - Disabilita la ricezione delle notifiche{Environment.NewLine}
                                                              <b>/stato</b> - Aggiungi come parametro il nome macchina e avrai lo stato di quella macchina (esempio: /stato mBR01){Environment.NewLine}
@@ -193,11 +194,11 @@ namespace TelegramPolling
                                                     {
                                                         if (response.StatusCode == HttpStatusCode.InternalServerError)
                                                         {
-                                                            InternalServerError(response, user);
+                                                            InternalServerError(response, user, tg);
                                                         }
                                                         else if (response.StatusCode == HttpStatusCode.NotFound)
                                                         {
-                                                            SendMessage(user, $"Non conosco questa macchina {parametri[1]}");
+                                                            tg.SendMessage(user, $"Non conosco questa macchina {parametri[1]}");
                                                             log.Error($"Non conosco questa macchina {parametri[1]}, {user.FirstName}");
                                                         }
                                                         else if (response.StatusCode != HttpStatusCode.OK)
@@ -214,17 +215,17 @@ namespace TelegramPolling
                                                 }
                                                 else
                                                 {
-                                                    SendMessage(user, $"Non conosco questa macchina {parametri[1]}");
+                                                    tg.SendMessage(user, $"Non conosco questa macchina {parametri[1]}");
                                                 }
                                             }
                                             else
                                             {
-                                                SendMessage(user, "Comando errato, riprova...");
+                                                tg.SendMessage(user, "Comando errato, riprova...");
                                             }
                                         }
                                         else
                                         {
-                                            SendMessage(user, "Non sei autorizzato ad usare questo comando o non sei registrato!");
+                                            tg.SendMessage(user, "Non sei autorizzato ad usare questo comando o non sei registrato!");
                                         }
                                         break;
                                     case "/busta":
@@ -241,11 +242,11 @@ namespace TelegramPolling
                                                 {
                                                     if (response.StatusCode == HttpStatusCode.InternalServerError)
                                                     {
-                                                        InternalServerError(response, user);
+                                                        InternalServerError(response, user, tg);
                                                     }
                                                     else if (response.StatusCode == HttpStatusCode.NotFound)
                                                     {
-                                                        SendMessage(user, $"Non conosco questa commessa {parametri[1]}");
+                                                        tg.SendMessage(user, $"Non conosco questa commessa {parametri[1]}");
                                                         log.Error($"Non conosco questa commessa {parametri[1]}, {user.FirstName}");
                                                     }
                                                     else if (response.StatusCode != HttpStatusCode.OK)
@@ -262,12 +263,12 @@ namespace TelegramPolling
                                             }
                                             else
                                             {
-                                                SendMessage(user, "Comando errato, riprova...");
+                                                tg.SendMessage(user, "Comando errato, riprova...");
                                             }
                                         }
                                         else
                                         {
-                                            SendMessage(user, "Non sei autorizzato ad usare questo comando o non sei registrato!");
+                                            tg.SendMessage(user, "Non sei autorizzato ad usare questo comando o non sei registrato!");
                                         }
                                         break;
                                     default:
@@ -291,41 +292,16 @@ namespace TelegramPolling
             }
         }
 
-        private static void InternalServerError(IRestResponse response, User user)
+        private static void InternalServerError(IRestResponse response, User user, Telegram tg)
         {
             ExceptionModel ex = JsonConvert.DeserializeObject<ExceptionModel>(response.Content);
             string toLog = $"{ex.Message}{Environment.NewLine}{ex.ExceptionMessage}{Environment.NewLine}{ex.ExceptionType}{Environment.NewLine}{ex.StackTrace}{Environment.NewLine}";
             Console.WriteLine(toLog);
             log.Error(toLog);
-            SendMessage(user, $"Purtroppo non sono riuscito a portare a termine la tua richiesta {_emojiSad}");
+            tg.SendMessage(user, $"Purtroppo non sono riuscito a portare a termine la tua richiesta {_emojiSad}");
         }
 
-        private static void SendMessage(User user, string message, bool Html = false)
-        {
-            try
-            {
-                RestClient rc = new RestClient(ConfigurationManager.AppSettings["ApiTelegram"]);
-                RestRequest rr = new RestRequest();
-                rr.Resource = $"api/Telegram/SendMessage/{user.Id}/{Html}";
-                rr.Method = Method.POST;
-                rr.AddJsonBody(message);
-
-                var resp = rc.Execute(rr);
-
-                if(resp.ErrorException != null)
-                { 
-                    Console.WriteLine($"{resp.ErrorMessage}{Environment.NewLine}{resp.ErrorException.StackTrace}");
-                    log.Error($"{resp.ErrorMessage}{Environment.NewLine}{resp.ErrorException.StackTrace}");
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"{ex.Message}{Environment.NewLine}{ex.StackTrace}");
-                log.Error($"{ex.Message}{Environment.NewLine}{ex.StackTrace}");
-            }
-        }
-
-        public static bool IsPhoneNumber(string number)
+        private static bool IsPhoneNumber(string number)
         {
             return Regex.Match(number, @"^(\+[0-9]{9})$").Success;
         }
