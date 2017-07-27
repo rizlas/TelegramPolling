@@ -114,10 +114,7 @@ namespace TelegramPolling
                                                     }
                                                     else if (response.StatusCode == HttpStatusCode.InternalServerError)
                                                     {
-                                                        ExceptionModel ex = JsonConvert.DeserializeObject<ExceptionModel>(response.Content);
-                                                        string toLog = $"{ex.Message}{Environment.NewLine}{ex.ExceptionMessage}{Environment.NewLine}{ex.ExceptionType}{Environment.NewLine}{ex.StackTrace}{Environment.NewLine}";
-                                                        Console.WriteLine(toLog);
-                                                        log.Error(toLog);
+                                                        InternalServerError(response, user);
                                                     }
                                                     else if (response.StatusCode != HttpStatusCode.OK)
                                                     {
@@ -160,10 +157,7 @@ namespace TelegramPolling
                                             }
                                             else if (response.StatusCode == HttpStatusCode.InternalServerError)
                                             {
-                                                ExceptionModel ex = JsonConvert.DeserializeObject<ExceptionModel>(response.Content);
-                                                string toLog = $"{ex.Message}{Environment.NewLine}{ex.ExceptionMessage}{Environment.NewLine}{ex.ExceptionType}{Environment.NewLine}{ex.StackTrace}{Environment.NewLine}";
-                                                Console.WriteLine(toLog);
-                                                log.Error(toLog);
+                                                InternalServerError(response, user);
                                             }
                                             else if (response.StatusCode != HttpStatusCode.OK)
                                             {
@@ -176,8 +170,12 @@ namespace TelegramPolling
 
                                         break;
                                     case "/help":
-                                        Console.WriteLine($"/start - Abilita ricezione notifiche{Environment.NewLine}/stop - Disabilita ricezione notifche{Environment.NewLine}/help - Fa vedere questa lista");
-                                        SendMessage(user, $"<b>Lista comandi per il bot IGF Avvisi</b>{Environment.NewLine}{Environment.NewLine}<b>/start</b> - Abilita la ricezione delle notifiche{Environment.NewLine}<b>/stop</b> - Disabilita la ricezione delle notifiche{Environment.NewLine}<b>/help</b> - Visualizza questa lista{Environment.NewLine}<b>/stato</b> - aggiungi come parametro il nome macchina e avrai lo stato di quella macchina (esempio: /stato mBR01)", true);
+                                        SendMessage(user, $@"<b>Lista comandi per il bot IGF Avvisi</b>{Environment.NewLine}{Environment.NewLine}
+                                                             <b>/start</b> - Abilita la ricezione delle notifiche{Environment.NewLine}
+                                                             <b>/stop</b> - Disabilita la ricezione delle notifiche{Environment.NewLine}
+                                                             <b>/stato</b> - Aggiungi come parametro il nome macchina e avrai lo stato di quella macchina (esempio: /stato mBR01){Environment.NewLine}
+                                                             <b>/busta</b> - Aggiungi come parametro il numero di commessa e avrai il pdf della busta lavoro (esempio: /busta 546.17){Environment.NewLine}
+                                                             <b>/help</b> - Visualizza questa lista", true);
                                         break;
                                     case "/stato":
                                         if (tg.Registered.Find(u => u.ChatId == user.Id) != null)
@@ -195,10 +193,7 @@ namespace TelegramPolling
                                                     {
                                                         if (response.StatusCode == HttpStatusCode.InternalServerError)
                                                         {
-                                                            ExceptionModel ex = JsonConvert.DeserializeObject<ExceptionModel>(response.Content);
-                                                            string toLog = $"{ex.Message}{Environment.NewLine}{ex.ExceptionMessage}{Environment.NewLine}{ex.ExceptionType}{Environment.NewLine}{ex.StackTrace}{Environment.NewLine}";
-                                                            Console.WriteLine(toLog);
-                                                            log.Error(toLog);
+                                                            InternalServerError(response, user);
                                                         }
                                                         else if (response.StatusCode == HttpStatusCode.NotFound)
                                                         {
@@ -232,6 +227,49 @@ namespace TelegramPolling
                                             SendMessage(user, "Non sei autorizzato ad usare questo comando o non sei registrato!");
                                         }
                                         break;
+                                    case "/busta":
+                                        if (tg.Registered.Find(u => u.ChatId == user.Id) != null)
+                                        {
+                                            if (parametri.Length > 1)
+                                            {
+                                                rr.Resource = $"api/Telegram/WorkOrder/{user.Id}/{parametri[1]}/{ConfigurationManager.AppSettings["PasswordUserIntranet"]}";
+                                                rr.Method = Method.GET;
+
+                                                #region Busta Execution
+
+                                                rc.ExecuteAsync(rr, response =>
+                                                {
+                                                    if (response.StatusCode == HttpStatusCode.InternalServerError)
+                                                    {
+                                                        InternalServerError(response, user);
+                                                    }
+                                                    else if (response.StatusCode == HttpStatusCode.NotFound)
+                                                    {
+                                                        SendMessage(user, $"Non conosco questa commessa {parametri[1]}");
+                                                        log.Error($"Non conosco questa commessa {parametri[1]}, {user.FirstName}");
+                                                    }
+                                                    else if (response.StatusCode != HttpStatusCode.OK)
+                                                    {
+                                                        if (response.ErrorException != null)
+                                                            log.Error(response.ErrorException.Message);
+
+                                                        Console.WriteLine(response.Content);
+                                                        log.Warn($"Code: {response.StatusCode} Content: {response.Content}");
+                                                    }
+                                                });
+
+                                                #endregion
+                                            }
+                                            else
+                                            {
+                                                SendMessage(user, "Comando errato, riprova...");
+                                            }
+                                        }
+                                        else
+                                        {
+                                            SendMessage(user, "Non sei autorizzato ad usare questo comando o non sei registrato!");
+                                        }
+                                        break;
                                     default:
                                         Console.WriteLine($"Messaggio: {messaggio}");
                                         break;
@@ -251,6 +289,15 @@ namespace TelegramPolling
             {
                 log.Error("Non sono riuscito a determinare gli utenti!");
             }
+        }
+
+        private static void InternalServerError(IRestResponse response, User user)
+        {
+            ExceptionModel ex = JsonConvert.DeserializeObject<ExceptionModel>(response.Content);
+            string toLog = $"{ex.Message}{Environment.NewLine}{ex.ExceptionMessage}{Environment.NewLine}{ex.ExceptionType}{Environment.NewLine}{ex.StackTrace}{Environment.NewLine}";
+            Console.WriteLine(toLog);
+            log.Error(toLog);
+            SendMessage(user, $"Purtroppo non sono riuscito a portare a termine la tua richiesta {_emojiSad}");
         }
 
         private static void SendMessage(User user, string message, bool Html = false)
