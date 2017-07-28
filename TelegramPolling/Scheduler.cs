@@ -176,6 +176,7 @@ namespace TelegramPolling
                                                              <b>/stop</b> - Disabilita la ricezione delle notifiche{Environment.NewLine}
                                                              <b>/stato</b> - Aggiungi come parametro il nome macchina e avrai lo stato di quella macchina (esempio: /stato mBR01){Environment.NewLine}
                                                              <b>/busta</b> - Aggiungi come parametro il numero di commessa e avrai il pdf della busta lavoro (esempio: /busta 546.17){Environment.NewLine}
+                                                             <b>/riepilogo</b> - Aggiungi come parametro il numero di commessa e avrai il pdf del riepilogo produzione (esempio: /riepilogo 741.17){Environment.NewLine}
                                                              <b>/help</b> - Visualizza questa lista", true);
                                         break;
                                     case "/stato":
@@ -234,6 +235,49 @@ namespace TelegramPolling
                                             if (parametri.Length > 1)
                                             {
                                                 rr.Resource = $"api/Telegram/WorkOrder/{user.Id}/{parametri[1]}/{ConfigurationManager.AppSettings["PasswordUserIntranet"]}";
+                                                rr.Method = Method.GET;
+
+                                                #region Busta Execution
+
+                                                rc.ExecuteAsync(rr, response =>
+                                                {
+                                                    if (response.StatusCode == HttpStatusCode.InternalServerError)
+                                                    {
+                                                        InternalServerError(response, user, tg);
+                                                    }
+                                                    else if (response.StatusCode == HttpStatusCode.NotFound)
+                                                    {
+                                                        tg.SendMessage(user, $"Non conosco questa commessa {parametri[1]}");
+                                                        log.Error($"Non conosco questa commessa {parametri[1]}, {user.FirstName}");
+                                                    }
+                                                    else if (response.StatusCode != HttpStatusCode.OK)
+                                                    {
+                                                        if (response.ErrorException != null)
+                                                            log.Error(response.ErrorException.Message);
+
+                                                        Console.WriteLine(response.Content);
+                                                        log.Warn($"Code: {response.StatusCode} Content: {response.Content}");
+                                                    }
+                                                });
+
+                                                #endregion
+                                            }
+                                            else
+                                            {
+                                                tg.SendMessage(user, "Comando errato, riprova...");
+                                            }
+                                        }
+                                        else
+                                        {
+                                            tg.SendMessage(user, "Non sei autorizzato ad usare questo comando o non sei registrato!");
+                                        }
+                                        break;
+                                    case "/riepilogo":
+                                        if (tg.Registered.Find(u => u.ChatId == user.Id) != null)
+                                        {
+                                            if (parametri.Length > 1)
+                                            {
+                                                rr.Resource = $"api/Telegram/WorkSummary/{user.Id}/{parametri[1]}/{ConfigurationManager.AppSettings["PasswordUserIntranet"]}";
                                                 rr.Method = Method.GET;
 
                                                 #region Busta Execution
