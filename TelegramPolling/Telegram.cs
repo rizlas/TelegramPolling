@@ -14,6 +14,8 @@ namespace TelegramPolling
     class Telegram
     {
         List<TelegramUser> registered;
+        TelegramBotClient clientTelegram;
+
         private static readonly ILog log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
 
         public List<TelegramUser> Registered
@@ -32,11 +34,12 @@ namespace TelegramPolling
         public Telegram()
         {
             registered = new List<TelegramUser>();
+            clientTelegram = new TelegramBotClient(ConfigurationManager.AppSettings["Token"]);
         }
 
         public async Task<Update[]> GetUpdates(int offset)
         {
-            return await new TelegramBotClient(ConfigurationManager.AppSettings["Token"]).GetUpdatesAsync(offset);
+            return await clientTelegram.GetUpdatesAsync(offset);
         }
 
         public bool FillUsers()

@@ -52,7 +52,7 @@ namespace TelegramPolling
 
         private async void StartThread()
         {
-            SignalRTerminalsClient sc = new SignalRTerminalsClient();
+            //SignalRTerminalsClient sc = new SignalRTerminalsClient();
             Telegram tg = new Telegram();
             bool ret = tg.FillUsers();
 
@@ -60,12 +60,13 @@ namespace TelegramPolling
             {
                 RestClient rc = new RestClient(ConfigurationManager.AppSettings["ApiTelegram"]);
                 RestRequest rr = new RestRequest();
+                Update[] updates = null;
 
                 while (true)
                 {
                     try
                     {
-                        Update[] updates = await tg.GetUpdates(_lastUpdateId);
+                        updates = await tg.GetUpdates(_lastUpdateId);
 
                         if (updates.Length > 0)
                         {
@@ -322,6 +323,8 @@ namespace TelegramPolling
 
                                 Console.WriteLine($"Last Id: {_lastUpdateId}");
                             }
+
+                            GC.Collect();
                         }
                     }
                     catch (Exception ex)
