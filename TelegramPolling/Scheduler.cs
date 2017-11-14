@@ -186,6 +186,7 @@ namespace TelegramPolling
                                         if (IsRegisteredAndAuthorized(tg, user, 1))
                                         {
                                             sb.AppendLine("<b>/log</b> - Aggiungi come parametro il nome macchina e avrai l'ultimo log registrato del PDA associato");
+                                            sb.AppendLine("<b>/online</b> - Ritorna gli utenti connessi ad IGF Droid");
                                         }
 
                                         sb.AppendLine("<b>/help</b> - Visualizza questa lista");
@@ -374,6 +375,37 @@ namespace TelegramPolling
                                             {
                                                 tg.SendMessage(user, "Comando errato, riprova...");
                                             }
+                                        }
+                                        else
+                                        {
+                                            tg.SendMessage(user, "Non sei autorizzato ad usare questo comando o non sei registrato!");
+                                        }
+                                        break;
+                                    case "/online":
+                                        if (IsRegisteredAndAuthorized(tg, user, 1))
+                                        {
+                                            rr.Resource = $"api/Telegram/GetLogged/{user.Id}";
+                                            rr.Method = Method.GET;
+
+                                            #region Online Execution
+
+                                            rc.ExecuteAsync(rr, response =>
+                                            {
+                                                if (response.StatusCode == HttpStatusCode.InternalServerError)
+                                                {
+                                                    InternalServerError(response, user, tg);
+                                                }
+                                                else if (response.StatusCode != HttpStatusCode.OK)
+                                                {
+                                                    if (response.ErrorException != null)
+                                                        log.Error(response.ErrorException.Message);
+
+                                                    Console.WriteLine(response.Content);
+                                                    log.Warn($"Code: {response.StatusCode} Content: {response.Content}");
+                                                }
+                                            });
+
+                                            #endregion
                                         }
                                         else
                                         {
