@@ -8,6 +8,7 @@ using System.Net;
 using Newtonsoft.Json;
 using log4net;
 using System.Text.RegularExpressions;
+using System.Text;
 
 namespace TelegramPolling
 {
@@ -97,7 +98,7 @@ namespace TelegramPolling
                                                 Console.WriteLine($"Utente: {updates[i].Message.From.FirstName} registrato");
                                                 rr.Resource = "api/Telegram/Subscribe";
                                                 rr.Method = Method.POST;
-                                                rr.AddJsonBody(new { id = -1, FirstName = user.FirstName, ChatId = user.Id, LastName = user.LastName, Username = user.Username });
+                                                rr.AddJsonBody(new { id = -1, FirstName = user.FirstName, ChatId = user.Id, LastName = user.LastName, Username = user.Username, GroupId = 3 });
 
                                                 #region Start Execution
 
@@ -106,8 +107,8 @@ namespace TelegramPolling
                                                     if (response.StatusCode == HttpStatusCode.Created)
                                                     {
                                                         Console.WriteLine("Aggiunto");
-                                                        tg.Registered.Add(new TelegramUser() { id = -1, FirstName = user.FirstName, ChatId = user.Id, LastName = user.LastName, Username = user.Username });
-                                                        tg.SendMessage(user, $"Benvenuto {user.FirstName}, per la lista comandi digita /help. {_emojiHappy}");
+                                                        tg.Registered.Add(new TelegramUser() { id = -1, FirstName = user.FirstName, ChatId = user.Id, LastName = user.LastName, Username = user.Username, GroupId = 3 });
+                                                        tg.SendMessage(user, $"Benvenuto {user.FirstName}, per la lista comandi digita /help. {_emojiHappy}. Prima di usarli dovrai attendere che l'amministratore ti aggiunga nella sua cerchia di fedeli!");
                                                     }
                                                     else if (response.StatusCode == HttpStatusCode.NotModified)
                                                     {
@@ -172,16 +173,29 @@ namespace TelegramPolling
 
                                         break;
                                     case "/help":
-                                        tg.SendMessage(user, $@"<b>Lista comandi per il bot IGF Avvisi</b>{Environment.NewLine}{Environment.NewLine}
-                                                             <b>/start</b> - Abilita la ricezione delle notifiche{Environment.NewLine}
-                                                             <b>/stop</b> - Disabilita la ricezione delle notifiche{Environment.NewLine}
-                                                             <b>/stato</b> - Aggiungi come parametro il nome macchina e avrai lo stato di quella macchina (esempio: /stato mBR01){Environment.NewLine}
-                                                             <b>/busta</b> - Aggiungi come parametro il numero di commessa e avrai il pdf della busta lavoro (esempio: /busta 546.17){Environment.NewLine}
-                                                             <b>/riepilogo</b> - Aggiungi come parametro il numero di commessa e avrai il pdf del riepilogo produzione (esempio: /riepilogo 741.17){Environment.NewLine}
-                                                             <b>/help</b> - Visualizza questa lista", true);
+                                        StringBuilder sb = new StringBuilder();
+
+                                        sb.AppendLine("<b>Lista comandi per il bot IGF</b>");
+                                        sb.AppendLine();
+                                        sb.AppendLine("<b>/start</b> - Abilita la ricezione delle notifiche");
+                                        sb.AppendLine("<b>/stop</b> - Disabilita la ricezione delle notifiche");
+                                        sb.AppendLine("<b>/stato</b> - Aggiungi come parametro il nome macchina e avrai lo stato di quella macchina (esempio: /stato mBR01)");
+                                        sb.AppendLine("<b>/busta</b> - Aggiungi come parametro il numero di commessa e avrai il pdf della busta lavoro (esempio: /busta 546.17)");
+                                        sb.AppendLine("<b>/riepilogo</b> - Aggiungi come parametro il numero di commessa e avrai il pdf del riepilogo produzione (esempio: /riepilogo 741.17)");
+
+                                        if (IsRegisteredAndAuthorized(tg, user, 1))
+                                        {
+                                            sb.AppendLine("<b>/log</b> - Aggiungi come parametro il nome macchina e avrai l'ultimo log registrato del PDA associato");
+                                        }
+
+                                        sb.AppendLine("<b>/help</b> - Visualizza questa lista");
+
+                                        string help = sb.ToString();
+
+                                        tg.SendMessage(user, help, true);
                                         break;
                                     case "/stato":
-                                        if (tg.Registered.Find(u => u.ChatId == user.Id) != null)
+                                        if (IsRegisteredAndAuthorized(tg, user, 2))
                                         {
                                             if (parametri.Length > 1)
                                             {
@@ -231,7 +245,7 @@ namespace TelegramPolling
                                         }
                                         break;
                                     case "/busta":
-                                        if (tg.Registered.Find(u => u.ChatId == user.Id) != null)
+                                        if (IsRegisteredAndAuthorized(tg, user, 2))
                                         {
                                             if (parametri.Length > 1)
                                             {
@@ -274,14 +288,14 @@ namespace TelegramPolling
                                         }
                                         break;
                                     case "/riepilogo":
-                                        if (tg.Registered.Find(u => u.ChatId == user.Id) != null)
+                                        if (IsRegisteredAndAuthorized(tg, user, 2))
                                         {
                                             if (parametri.Length > 1)
                                             {
                                                 rr.Resource = $"api/Telegram/WorkSummary/{user.Id}/{parametri[1]}/{ConfigurationManager.AppSettings["PasswordUserIntranet"]}";
                                                 rr.Method = Method.GET;
 
-                                                #region Busta Execution
+                                                #region Riepilogo Execution
 
                                                 rc.ExecuteAsync(rr, response =>
                                                 {
@@ -316,7 +330,58 @@ namespace TelegramPolling
                                             tg.SendMessage(user, "Non sei autorizzato ad usare questo comando o non sei registrato!");
                                         }
                                         break;
+                                    case "/log":
+                                        if (IsRegisteredAndAuthorized(tg, user, 1))
+                                        {
+                                            if (parametri.Length > 1)
+                                            {
+                                                if (parametri[1].Length == 5)
+                                                {
+                                                    rr.Resource = $"api/PdaMachine/PdaCommand/log/{parametri[1]}/{user.Id}";
+                                                    rr.Method = Method.GET;
+
+                                                    #region Log Execution
+
+                                                    rc.ExecuteAsync(rr, response =>
+                                                    {
+                                                        if (response.StatusCode == HttpStatusCode.InternalServerError)
+                                                        {
+                                                            InternalServerError(response, user, tg);
+                                                        }
+                                                        else if (response.StatusCode == HttpStatusCode.NotFound)
+                                                        {
+                                                            tg.SendMessage(user, response.Content);
+                                                            log.Error($"Non conosco questa macchina {parametri[1]}, {user.FirstName}");
+                                                        }
+                                                        else if (response.StatusCode != HttpStatusCode.OK)
+                                                        {
+                                                            if (response.ErrorException != null)
+                                                                log.Error(response.ErrorException.Message);
+
+                                                            Console.WriteLine(response.Content);
+                                                            log.Warn($"Code: {response.StatusCode} Content: {response.Content}");
+                                                        }
+                                                    });
+
+                                                    #endregion
+                                                }
+                                                else
+                                                {
+                                                    tg.SendMessage(user, $"Non conosco questa macchina {parametri[1]}");
+                                                }
+                                            }
+                                            else
+                                            {
+                                                tg.SendMessage(user, "Comando errato, riprova...");
+                                            }
+                                        }
+                                        else
+                                        {
+                                            tg.SendMessage(user, "Non sei autorizzato ad usare questo comando o non sei registrato!");
+                                        }
+                                        break;
                                     default:
+                                        tg.SendMessage(user, $"Comando sconosciuto {_emojiSad}");
                                         Console.WriteLine($"Messaggio: {messaggio}");
                                         break;
                                 }
@@ -337,6 +402,11 @@ namespace TelegramPolling
             {
                 log.Error("Non sono riuscito a determinare gli utenti!");
             }
+        }
+
+        private static bool IsRegisteredAndAuthorized(Telegram tg, User user, int groupId)
+        {
+            return tg.Registered.Find(u => u.ChatId == user.Id) != null && tg.Registered.Find(u => u.ChatId == user.Id).GroupId == groupId;
         }
 
         private static void InternalServerError(IRestResponse response, User user, Telegram tg)

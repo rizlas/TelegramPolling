@@ -131,6 +131,7 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="SignalRTerminalsClient.cs" />
     <Compile Include="Telegram.cs" />
+    <Compile Include="TelegramGroup.cs" />
     <Compile Include="TelegramUser.cs" />
   </ItemGroup>
   <ItemGroup>
