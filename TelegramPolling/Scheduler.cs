@@ -436,9 +436,9 @@ namespace TelegramPolling
             }
         }
 
-        private static bool IsRegisteredAndAuthorized(Telegram tg, User user, int groupId)
+        private static bool IsRegisteredAndAuthorized(Telegram tg, User user, int minLevelAuthorize)
         {
-            return tg.Registered.Find(u => u.ChatId == user.Id) != null && tg.Registered.Find(u => u.ChatId == user.Id).GroupId == groupId;
+            return tg.Registered.Find(u => u.ChatId == user.Id) != null && tg.Registered.Find(u => u.ChatId == user.Id).GroupId <= minLevelAuthorize;
         }
 
         private static void InternalServerError(IRestResponse response, User user, Telegram tg)
