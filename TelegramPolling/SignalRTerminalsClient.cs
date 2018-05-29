@@ -1,10 +1,10 @@
 ﻿using Microsoft.AspNet.SignalR.Client;
 using System;
 using System.Configuration;
-using IGF.Manufactoring.Api.Models;
 using log4net;
 using Telegram.Bot.Types;
 using RestSharp;
+using IGF.Manufactoring.Models;
 
 namespace TelegramPolling
 {
