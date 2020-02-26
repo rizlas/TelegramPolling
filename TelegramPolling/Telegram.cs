@@ -33,6 +33,8 @@ namespace TelegramPolling
 
         public Telegram()
         {
+            ServicePointManager.Expect100Continue = true;
+            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
             registered = new List<TelegramUser>();
             clientTelegram = new TelegramBotClient(ConfigurationManager.AppSettings["Token"]);
         }
