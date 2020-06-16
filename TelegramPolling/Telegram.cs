@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Configuration;
 using System.Net;
+using System.Net.Configuration;
 using System.Threading.Tasks;
 using Telegram.Bot;
 using Telegram.Bot.Types;
@@ -77,10 +78,18 @@ namespace TelegramPolling
 
                 var resp = rc.Execute(rr);
 
-                if (resp.ErrorException != null)
+                if(resp.StatusCode != HttpStatusCode.OK)
                 {
-                    Console.WriteLine($"{resp.ErrorMessage}{Environment.NewLine}{resp.ErrorException.StackTrace}");
-                    log.Error($"{resp.ErrorMessage}{Environment.NewLine}{resp.ErrorException.StackTrace}");
+                    string msg = resp.Content;
+                    Console.WriteLine(msg);
+                    log.Error(msg);
+
+                    if (resp.ErrorException != null)
+                    {
+                        msg = $"{resp.ErrorMessage}{Environment.NewLine}{resp.ErrorException.StackTrace}";
+                        Console.WriteLine(msg);
+                        log.Error(msg);
+                    }
                 }
             }
             catch (Exception ex)
